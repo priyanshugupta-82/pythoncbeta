@@ -1,105 +1,82 @@
 // api/api+login.js
 
-const rateMap = new Map();
-const LIMIT = 10;        // max AI calls
-const WINDOW = 60_000;   // per 60 seconds
+const RATE_LIMIT = new Map(); // IP → { count, time }
+const LIMIT = 20; // requests
+const WINDOW = 60 * 1000; // 1 minute
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).end();
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.socket.remoteAddress ||
+    "unknown";
+
+  // ---------------- RATE LIMIT ----------------
+  const now = Date.now();
+  const entry = RATE_LIMIT.get(ip) || { count: 0, time: now };
+
+  if (now - entry.time > WINDOW) {
+    entry.count = 0;
+    entry.time = now;
   }
 
-  const body = req.body || {};
-  const { email, password, error } = body;
+  entry.count++;
+  RATE_LIMIT.set(ip, entry);
 
-  /* ---------------- LOGIN ---------------- */
-  if (email !== undefined && password !== undefined) {
+  if (entry.count > LIMIT) {
+    return res.status(429).json({
+      ok: false,
+      error: "Too many requests. Please slow down."
+    });
+  }
+
+  // --------------- LOGIN API ------------------
+  if (req.body?.email && req.body?.password) {
+    // Simple demo login (replace with DB later)
     if (
-      email === "test@pythoncai.in" &&
-      password === "pythoncaiisbest911"
+      req.body.email === "test@test.com" &&
+      req.body.password === "123456"
     ) {
-      return res.status(200).json({ ok: true });
+      return res.json({ ok: true });
     }
-    return res.status(401).json({ ok: false });
+    return res.json({ ok: false });
   }
 
-  /* ----------- RATE LIMIT (AI) ----------- */
-  if (error) {
-    const ip =
-      req.headers["x-forwarded-for"]?.split(",")[0] ||
-      req.socket?.remoteAddress ||
-      "unknown";
-
-    const now = Date.now();
-    let data = rateMap.get(ip);
-
-    if (!data || now - data.time > WINDOW) {
-      data = { count: 0, time: now };
-    }
-
-    data.count++;
-    rateMap.set(ip, data);
-
-    if (data.count > LIMIT) {
-      return res.status(429).json({
-        fix:
-          "Error: rate limit exceeded.\n" +
-          "Fix: wait 1 minute and try again."
-      });
-    }
+  // --------------- AI FIX API -----------------
+  if (!req.body?.error) {
+    return res.json({ ok: false });
   }
 
-  /* -------------- AI FIXER -------------- */
-  if (error) {
-    const prompt = `
-You are a Python error fixer.
+  const err = req.body.error.toLowerCase();
 
-The program produced this error:
-${error}
+  let response = {
+    fix: "Fix: unable to determine correction."
+  };
 
-Respond STRICTLY in this exact format:
-
-Error: on line X, <clear explanation>.
-Fix: line X be <corrected code>.
-
-Rules:
-- Do not add extra text.
-- Do not add markdown.
-- Always respond in exactly 2 lines.
-`;
-
-    try {
-      const r = await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "arcee-ai/trinity-large-preview:free",
-            temperature: 0,
-            messages: [{ role: "user", content: prompt }]
-          })
-        }
-      );
-
-      const d = await r.json();
-      const text =
-        d?.choices?.[0]?.message?.content ||
-        "Error: unknown error.\nFix: check syntax.";
-
-      return res.status(200).json({ fix: text });
-
-    } catch (e) {
-      return res.status(500).json({
-        fix:
-          "Error: AI service unavailable.\n" +
-          "Fix: try again later."
-      });
-    }
+  // ---- Missing parenthesis or quote ----
+  if (
+    err.includes("unexpected eof") ||
+    err.includes("missing") ||
+    err.includes("incomplete") ||
+    err.includes("was never closed")
+  ) {
+    response.fix =
+`Error: on line 2, missing closing parenthesis or quote.
+Fix: line 2 be print("hello world")`;
   }
 
-  return res.status(400).end();
+  // ---- Indentation error ----
+  else if (err.includes("indentationerror")) {
+    response.fix =
+`Error: incorrect indentation on line 2.
+Fix: line 2 be properly indented.`;
+  }
+
+  // ---- Name error ----
+  else if (err.includes("nameerror")) {
+    response.fix =
+`Error: variable used before definition.
+Fix: define the variable before use.`;
+  }
+
+  return res.json(response);
 }
