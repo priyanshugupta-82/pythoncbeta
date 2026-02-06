@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Python Compiler</title>
+<title>PythonC AI Compiler</title>
 
 <!-- Skulpt -->
 <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
@@ -39,7 +39,6 @@ pre{overflow:auto}
 }
 </style>
 </head>
-
 <body>
 
 <!-- LOGIN -->
@@ -54,14 +53,13 @@ pre{overflow:auto}
 </div>
 
 <!-- APP -->
-<div id="app" style="display:none">
+<div id="app" style="display:none;flex-direction:column;height:100vh">
   <header>
-    <span>🐍 Python Compiler</span>
+    <span>🐍 PythonC AI Compiler</span>
     <button onclick="run()">▶ Run</button>
     <button onclick="clearOut()">🧹 Clear</button>
   </header>
-
-  <div class="container">
+  <div class="container" style="flex:1">
     <div class="panel">
       <textarea id="code">print("Hello World")</textarea>
     </div>
@@ -72,65 +70,59 @@ pre{overflow:auto}
 </div>
 
 <script>
-// ELEMENTS (FIX)
 const loginBox = document.getElementById("login");
-const appBox   = document.getElementById("app");
-const emailEl  = document.getElementById("email");
-const passEl   = document.getElementById("password");
+const appBox = document.getElementById("app");
+const emailEl = document.getElementById("email");
+const passEl = document.getElementById("password");
 const loginErr = document.getElementById("loginErr");
 const loginBtn = document.getElementById("loginBtn");
-const codeEl   = document.getElementById("code");
-const out      = document.getElementById("output");
+const codeEl = document.getElementById("code");
+const out = document.getElementById("output");
 
 // LOGIN
 loginBtn.onclick = () => {
-  fetch("/api/api+login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  fetch("/api/api+login",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
       email: emailEl.value,
       password: passEl.value
     })
   })
-  .then(r => r.json())
-  .then(d => {
-    if (d.ok) {
-      loginBox.style.display = "none";
-      appBox.style.display = "block";
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.ok){
+      loginBox.style.display="none";
+      appBox.style.display="flex";
     } else {
-      loginErr.textContent = "Invalid login";
+      loginErr.textContent="Invalid login";
     }
   })
-  .catch(() => {
-    loginErr.textContent = "Server error";
-  });
+  .catch(()=>loginErr.textContent="Server error");
 };
 
-// PYTHON
-function outf(t){ out.textContent += t; }
-function clearOut(){ out.textContent = ""; }
+// RUN PYTHON
+function outf(t){ out.textContent+=t; }
+function clearOut(){ out.textContent=""; }
 
 function run(){
-  out.textContent = "";
-  Sk.configure({
-    output: outf,
-    read: x => Sk.builtinFiles.files[x]
-  });
-
-  Sk.misceval.asyncToPromise(() =>
-    Sk.importMainWithBody("<stdin>", false, codeEl.value, true)
-  ).catch(e => handleError(e.toString()));
+  out.textContent="";
+  Sk.configure({output:outf,read:x=>Sk.builtinFiles.files[x]});
+  Sk.misceval.asyncToPromise(
+    ()=>Sk.importMainWithBody("<stdin>",false,codeEl.value,true)
+  ).catch(e=>handleError(e.toString()));
 }
 
+// HANDLE AI ERROR
 async function handleError(err){
-  out.textContent = err + "\n\n";
-  const r = await fetch("/api/api+login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ error: err })
+  out.textContent=err+"\n\n";
+  const r = await fetch("/api/api+login",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({error: err})
   });
   const d = await r.json();
-  if (d.fix) out.textContent += d.fix;
+  if(d.fix) out.textContent+=d.fix;
 }
 </script>
 
