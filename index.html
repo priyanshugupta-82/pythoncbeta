@@ -119,7 +119,19 @@ async function handleError(err){
   const r = await fetch("/api/api+login",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({error: err})
+    async function handleError(err){
+  out.textContent = err + "\n\n";
+  const r = await fetch("/api/api+login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      error: err,
+      code: codeEl.value  // send full code so backend can see surrounding lines
+    })
+  });
+  const d = await r.json();
+  if(d.fix) out.textContent += d.fix;
+}
   });
   const d = await r.json();
   if(d.fix) out.textContent+=d.fix;
