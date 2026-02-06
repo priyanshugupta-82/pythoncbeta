@@ -1,82 +1,69 @@
 // api/api+login.js
 
-const RATE_LIMIT = new Map(); // IP → { count, time }
-const LIMIT = 20; // requests
-const WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT = new Map(); // IP → {count, time}
+const LIMIT = 10; // max AI calls
+const WINDOW = 60*1000; // 1 min
 
-export default async function handler(req, res) {
-  const ip =
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
-    req.socket.remoteAddress ||
-    "unknown";
-
-  // ---------------- RATE LIMIT ----------------
+export default async function handler(req,res){
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.socket?.remoteAddress || "unknown";
   const now = Date.now();
-  const entry = RATE_LIMIT.get(ip) || { count: 0, time: now };
+  let data = RATE_LIMIT.get(ip) || {count:0, time:now};
 
-  if (now - entry.time > WINDOW) {
-    entry.count = 0;
-    entry.time = now;
+  if(now - data.time > WINDOW){ data.count=0; data.time=now; }
+  data.count++; RATE_LIMIT.set(ip,data);
+  if(data.count > LIMIT){
+    return res.status(429).json({fix:"Error: rate limit exceeded.\nFix: wait 1 minute and try again."});
   }
 
-  entry.count++;
-  RATE_LIMIT.set(ip, entry);
+  const body = req.body || {};
+  const {email,password,error} = body;
 
-  if (entry.count > LIMIT) {
-    return res.status(429).json({
-      ok: false,
-      error: "Too many requests. Please slow down."
-    });
-  }
-
-  // --------------- LOGIN API ------------------
-  if (req.body?.email && req.body?.password) {
-    // Simple demo login (replace with DB later)
-    if (
-      req.body.email === "test@test.com" &&
-      req.body.password === "123456"
-    ) {
-      return res.json({ ok: true });
+  // LOGIN
+  if(email!==undefined && password!==undefined){
+    if(email==="test@pythoncai.in" && password==="pythoncaiisbest911"){
+      return res.json({ok:true});
     }
-    return res.json({ ok: false });
+    return res.json({ok:false});
   }
 
-  // --------------- AI FIX API -----------------
-  if (!req.body?.error) {
-    return res.json({ ok: false });
+  // AI FIX
+  if(error){
+    const prompt = `
+You are a Python error fixer.
+User code caused this error:
+${error}
+Respond strictly in this format:
+Error: on line X <description>
+Fix: line X be <corrected code>
+Rules: ONLY 2 lines, no markdown, no extra text.
+`;
+
+    try{
+      const r = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method:"POST",
+          headers:{
+            "Authorization":`Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            model:"arcee-ai/trinity-large-preview:free",
+            temperature:0,
+            messages:[{role:"user", content:prompt}]
+          })
+        }
+      );
+      const d = await r.json();
+      const text = d?.choices?.[0]?.message?.content || 
+        "Error: unknown error.\nFix: check your code.";
+      return res.json({fix:text});
+    }catch(e){
+      return res.json({
+        fix:"Error: AI service unavailable.\nFix: try again later."
+      });
+    }
   }
 
-  const err = req.body.error.toLowerCase();
-
-  let response = {
-    fix: "Fix: unable to determine correction."
-  };
-
-  // ---- Missing parenthesis or quote ----
-  if (
-    err.includes("unexpected eof") ||
-    err.includes("missing") ||
-    err.includes("incomplete") ||
-    err.includes("was never closed")
-  ) {
-    response.fix =
-`Error: on line 2, missing closing parenthesis or quote.
-Fix: line 2 be print("hello world")`;
-  }
-
-  // ---- Indentation error ----
-  else if (err.includes("indentationerror")) {
-    response.fix =
-`Error: incorrect indentation on line 2.
-Fix: line 2 be properly indented.`;
-  }
-
-  // ---- Name error ----
-  else if (err.includes("nameerror")) {
-    response.fix =
-`Error: variable used before definition.
-Fix: define the variable before use.`;
-  }
-
-  return res.json(response);
+  return res.status(400).end();
 }
