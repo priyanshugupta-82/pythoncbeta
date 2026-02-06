@@ -16,7 +16,7 @@ export default async function handler(req,res){
   }
 
   const body = req.body || {};
-  const {email,password,error} = body;
+  const {email,password,error,code} = body;
 
   // LOGIN
   if(email!==undefined && password!==undefined){
@@ -27,15 +27,30 @@ export default async function handler(req,res){
   }
 
   // AI FIX
-  if(error){
+  if(error && code){
+    const lines = code.split("\n");
+
+    // Extract error line from message, fallback to line 1
+    let errLine = 1;
+    const m = error.match(/line (\d+)/i);
+    if(m) errLine = parseInt(m[1]);
+
+    // Context: 2 lines before + error line + 2 lines after
+    const start = Math.max(errLine-3,0);
+    const end = Math.min(errLine+2, lines.length);
+    const context = lines.slice(start,end).join("\n");
+
     const prompt = `
 You are a Python error fixer.
-User code caused this error:
+User code (lines ${start+1}-${end}):
+${context}
+
+The code caused this error:
 ${error}
+
 Respond strictly in this format:
 Error: on line X <description>
 Fix: line X be <corrected code>
-<corrected code> be the new code on the line that be written to fix. 
 
 Rules: ONLY 2 lines, no markdown, no extra text.
 `;
