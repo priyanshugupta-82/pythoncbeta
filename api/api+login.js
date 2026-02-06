@@ -35,6 +35,8 @@ ${error}
 Respond strictly in this format:
 Error: on line X <description>
 Fix: line X be <corrected code>
+<corrected code> be the new code on the line that be written to fix. 
+
 Rules: ONLY 2 lines, no markdown, no extra text.
 `;
 
