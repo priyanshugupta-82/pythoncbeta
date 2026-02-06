@@ -115,6 +115,31 @@ function run(){
 
 // HANDLE AI ERROR
 async function handleError(err){
+  out.textContent = err + "\n\n";
+  const r = await fetch("/api/api+login",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      error: err,
+      code: codeEl.value  // send full code so backend can extract context lines
+    })
+  });
+  const d = await r.json();
+  if(d.fix) out.textContent += d.fix;
+}
+</script>
+
+</body>
+</html>function run(){
+  out.textContent="";
+  Sk.configure({output:outf,read:x=>Sk.builtinFiles.files[x]});
+  Sk.misceval.asyncToPromise(
+    ()=>Sk.importMainWithBody("<stdin>",false,codeEl.value,true)
+  ).catch(e=>handleError(e.toString()));
+}
+
+// HANDLE AI ERROR
+async function handleError(err){
   out.textContent=err+"\n\n";
   const r = await fetch("/api/api+login",{
     method:"POST",
