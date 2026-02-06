@@ -1,5 +1,3 @@
-// api/api+login.js
-
 const RATE_LIMIT = new Map(); // IP → {count, time}
 const LIMIT = 10; // max AI calls
 const WINDOW = 60*1000; // 1 min
@@ -30,7 +28,7 @@ export default async function handler(req,res){
   if(error && code){
     const lines = code.split("\n");
 
-    // Extract error line from message, fallback to line 1
+    // Extract error line from message, fallback to 1
     let errLine = 1;
     const m = error.match(/line (\d+)/i);
     if(m) errLine = parseInt(m[1]);
@@ -49,7 +47,7 @@ The code caused this error:
 ${error}
 
 Respond strictly in this format:
-Error: on line X <description>
+Error: on line X <explain the mistake>
 Fix: line X be <corrected code>
 
 Rules: ONLY 2 lines, no markdown, no extra text.
